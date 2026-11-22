@@ -1,0 +1,1 @@
+Punjabi Kitchen complete menu image update. Upload the CONTENTS of this folder (index.html and assets folder) to your GitHub repository ROOT. All 50 menu items have image files. IMPORTANT: some illustrative photos are reused for similar dishes; replace with dish-specific real photos when available. Menu prices, categories and cart preserved. This is not online ordering/payment.
