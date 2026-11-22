@@ -8,8 +8,8 @@ const menu={'House Specials':[['Chole Bhature',10.99,'Spiced chickpea curry and 
 <button id="openCart" class="cart-launch" aria-label="Open shopping cart" aria-haspopup="dialog" aria-controls="cartPanel">🛒 Cart (<span id="cartCount">0</span>)</button>
 <div class="cart-panel" id="cartPanel" role="dialog" aria-modal="true" aria-label="Shopping cart" aria-hidden="true"><div class="cart-inner">
 <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font-family:Georgia,serif">Your Pickup Order</h2><button id="closeCart" aria-label="Close cart" style="border:0;background:transparent;font-size:25px;cursor:pointer">×</button></div>
-<div id="cartLines" style="margin:16px 0"></div><div style="display:flex;justify-content:space-between;font-size:20px;font-weight:bold"><span>Estimated subtotal</span><span id="cartTotal">$0.00</span></div>
-<p class="checkout-note">Pickup inquiry only. Prices are estimates; taxes, availability and final charges must be confirmed by the restaurant.</p>
+<div id="cartLines" style="margin:16px 0"></div><div style="display:flex;justify-content:space-between"><span>Estimated subtotal</span><strong id="cartTotal">$0.00</strong></div><div style="display:flex;justify-content:space-between;margin-top:8px"><span>Estimated sales tax (8.25%)</span><strong id="cartTax">$0.00</strong></div><div style="display:flex;justify-content:space-between;font-size:20px;font-weight:bold;margin-top:10px;padding-top:10px;border-top:1px solid #e7d7c6"><span>Estimated grand total</span><span id="cartGrandTotal">$0.00</span></div>
+<p class="checkout-note">Pickup inquiry only. Sales tax uses a provisional 8.25% rate and assumes all cart items are taxable. Restaurant must verify the applicable rate, item taxability, availability and final charges.</p>
 <label for="customerName">Name</label><input id="customerName" class="checkout-input" placeholder="Your name" autocomplete="name" maxlength="100" required/>
 <label for="customerPhone">Phone</label><input id="customerPhone" class="checkout-input" type="tel" placeholder="Phone number" autocomplete="tel" inputmode="tel" maxlength="25" required/>
 <label for="pickupTime">Preferred pickup time</label><input id="pickupTime" class="checkout-input" placeholder="e.g. Today 6:30 PM"/>
@@ -21,12 +21,14 @@ const menu={'House Specials':[['Chole Bhature',10.99,'Spiced chickpea curry and 
 <script>
 (function(){
 const CART_KEY='punjabi-kitchen-cart-v1';
+ const SALES_TAX_RATE=0.0825; // Provisional: verify exact location rate and item taxability before accepting orders.
+ const calculateTotals=()=>{const subtotalCents=cart.reduce((sum,x)=>sum+Math.round(x.price*100)*x.qty,0);const taxCents=Math.round(subtotalCents*SALES_TAX_RATE);return {subtotal:subtotalCents/100,tax:taxCents/100,grand:(subtotalCents+taxCents)/100};};
 let cart=[];
 try { const stored=JSON.parse(localStorage.getItem(CART_KEY)||'[]'); if(Array.isArray(stored))cart=stored.filter(x=>x&&typeof x.name==='string'&&Number.isFinite(x.price)&&x.price>=0&&Number.isInteger(x.qty)&&x.qty>0).slice(0,100); } catch(e) { cart=[]; }
 const $=id=>document.getElementById(id),money=n=>'$'+n.toFixed(2);
 function saveCart(){try{localStorage.setItem(CART_KEY,JSON.stringify(cart))}catch(e){}}
 function add(name,price){const line=cart.find(x=>x.name===name);if(line)line.qty++;else cart.push({name,price,qty:1});render()}
-function render(){saveCart();let count=cart.reduce((a,x)=>a+x.qty,0),sum=cart.reduce((a,x)=>a+x.qty*x.price,0);$('cartCount').textContent=count;$('cartTotal').textContent=money(sum);$('cartLines').innerHTML=cart.length?cart.map((x,i)=>'<div class="cart-line"><div><b>'+escapeHtml(x.name)+'</b><div style="font-size:12px">'+money(x.price)+' each</div></div><div><button data-minus="'+i+'" aria-label="Remove one">−</button> '+x.qty+' <button data-plus="'+i+'" aria-label="Add one">+</button></div></div>').join(''):'Your cart is empty. Add dishes from the menu or Thali builder.';}
+function render(){saveCart();let count=cart.reduce((a,x)=>a+x.qty,0),totals=calculateTotals();$('cartCount').textContent=count;$('cartTotal').textContent=money(totals.subtotal);$('cartTax').textContent=money(totals.tax);$('cartGrandTotal').textContent=money(totals.grand);$('cartLines').innerHTML=cart.length?cart.map((x,i)=>'<div class="cart-line"><div><b>'+escapeHtml(x.name)+'</b><div style="font-size:12px">'+money(x.price)+' each</div></div><div><button data-minus="'+i+'" aria-label="Remove one">−</button> '+x.qty+' <button data-plus="'+i+'" aria-label="Add one">+</button></div></div>').join(''):'Your cart is empty. Add dishes from the menu or Thali builder.';}
 function escapeHtml(x){return x.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 document.addEventListener('click',e=>{let b=e.target.closest('[data-add]');if(b){add(decodeURIComponent(b.dataset.add),Number(b.dataset.price))}let plus=e.target.closest('[data-plus]'),minus=e.target.closest('[data-minus]');if(plus){cart[+plus.dataset.plus].qty++;render()}if(minus){let i=+minus.dataset.minus;cart[i].qty--;if(!cart[i].qty)cart.splice(i,1);render()}});
 let focusBeforeCart=null;
@@ -40,7 +42,7 @@ const name=$('customerName').value.trim(),phone=$('customerPhone').value.trim(),
 if(!name){$('cartFeedback').textContent='Enter your name before copying the inquiry.';$('customerName').focus();return}
 if(phone.replace(/\D/g,'').length<10){$('cartFeedback').textContent='Enter a valid phone number before copying the inquiry.';$('customerPhone').focus();return}
 if(!pickup){$('cartFeedback').textContent='Enter a preferred pickup time before copying the inquiry.';$('pickupTime').focus();return}
-const msg='Punjabi Kitchen pickup inquiry\n'+cart.map(x=>x.qty+' × '+x.name+' — '+money(x.qty*x.price)).join('\n')+'\nEstimated subtotal: '+$('cartTotal').textContent+'\nName: '+name+'\nPhone: '+phone+'\nRequested pickup: '+pickup+'\nPlease confirm availability, total and pickup time.';try{await navigator.clipboard.writeText(msg);$('cartFeedback').textContent='Copied! Call the restaurant and share these order details.'}catch{$('cartFeedback').textContent='Copy unavailable in this browser. Please call the restaurant to order.'}};
+const msg='Punjabi Kitchen pickup inquiry\n'+cart.map(x=>x.qty+' × '+x.name+' — '+money(x.qty*x.price)).join('\n')+'\nEstimated subtotal: '+$('cartTotal').textContent+'\nEstimated sales tax (8.25%): '+$('cartTax').textContent+'\nEstimated grand total: '+$('cartGrandTotal').textContent+'\nName: '+name+'\nPhone: '+phone+'\nRequested pickup: '+pickup+'\nPlease confirm sales tax, availability, total and pickup time.';try{await navigator.clipboard.writeText(msg);$('cartFeedback').textContent='Copied! Call the restaurant and share these order details.'}catch{$('cartFeedback').textContent='Copy unavailable in this browser. Please call the restaurant to order.'}};
 const copyThali=$('copyOrder');if(copyThali){let addThali=document.createElement('button');addThali.className='btn';addThali.style.margin='8px';addThali.textContent='Add Thali to Cart';copyThali.after(addThali);addThali.onclick=()=>{if(chosen.length!==2){alert('Choose two dishes first.');return}let total=11.99+chosen.reduce((s,i)=>s+dishes[i][1],0)+breads[bread][1]+extra.reduce((s,i)=>s+extras[i][1],0);add('Punjabi Thali: '+chosen.map(i=>dishes[i][0]).join(' & ')+', '+breads[bread][0]+(extra.length?', '+extra.map(i=>extras[i][0]).join(', '):''),total);$('openCart').click()}}
 render();
 })();
@@ -60,7 +62,7 @@ render();
   const name=document.getElementById('customerName').value;
   const phone=document.getElementById('customerPhone').value;
   const pickup=document.getElementById('pickupTime').value;
-  const printable='Punjabi Kitchen — Pickup Inquiry\n\n'+lines+'\n\nEstimated subtotal: '+document.getElementById('cartTotal').textContent+'\nName: '+name+'\nPhone: '+phone+'\nRequested pickup: '+pickup+'\n\nNot a confirmed order. Call (209) 833-7180 to confirm.';
+  const printable='Punjabi Kitchen — Pickup Inquiry\n\n'+lines+'\n\nEstimated subtotal: '+document.getElementById('cartTotal').textContent+'\nEstimated sales tax (8.25%): '+document.getElementById('cartTax').textContent+'\nEstimated grand total: '+document.getElementById('cartGrandTotal').textContent+'\nName: '+name+'\nPhone: '+phone+'\nRequested pickup: '+pickup+'\n\nNot a confirmed order. Tax estimate assumes all items are taxable; confirm with restaurant. Call (209) 833-7180 to confirm.';
   const blob=new Blob([printable],{type:'text/plain'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='punjabi-kitchen-order.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  });
 })();
